@@ -1,5 +1,3 @@
-
-
 import pygame
 from table import Table
 
@@ -11,6 +9,7 @@ class Main:
     def process(self):
         while self.table.running:
             self.table.run()
+            self.table.events()
 
 
 
