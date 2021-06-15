@@ -11,7 +11,3 @@ class Settings:
         self.borderColor = self.dark
         self.fps = 60
         self.running = True
-
-        # PIECES STARTING POSITIONS
-        self.wKingX, self.wKingY = 5 * self.addon, self.addon * 8
-        self.wQueenX, self.wQueenY = 4 * self.addon, self.addon * 8
