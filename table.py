@@ -10,14 +10,16 @@ class Table:
         self.settings = Settings()
 
         #### PIECES
+        """
         self.pawns = p.sprite.Group()
         self.rooks = p.sprite.Group()
         self.bishops = p.sprite.Group()
         self.knights = p.sprite.Group()
         self.queens = p.sprite.Group()
         self.kings = p.sprite.Group()
+        """
+        self.pieces = p.sprite.Group()
         ##########
-        
         self.running = self.settings.running
         self.dark = self.settings.dark
         self.bright = self.settings.bright
@@ -30,6 +32,8 @@ class Table:
         self.clock = p.time.Clock()
         self.fps = self.settings.fps
         self.positionSmoother = (self.addon / 20)
+        self.dragging = False
+        self.clickedPiece = None
 
         # START GAME
         self.deployPawns()
@@ -68,14 +72,6 @@ class Table:
             p.draw.rect(self.screen, borderColor, p.Rect(self.addon+k*rectSize, self.addon, 5, rectSize+5))
 
 
-    def events(self):
-        #EVENTS
-        for event in p.event.get():
-            if event.type == p.QUIT:
-                self.running = False
-            if event.type == p.MOUSEBUTTONDOWN:
-                x, y = p.mouse.get_pos()
-
  ####################
  ####   PAWNS    ####
  ####################
@@ -89,7 +85,7 @@ class Table:
         pawn.x, pawn.y = self.addon * pawnNum + int(self.settings.addon * 0.1), self.addon * y + int(self.settings.addon * 0.1) - 5
         pawn.rect.x = pawn.x
         pawn.rect.y = pawn.y
-        self.pawns.add(pawn)
+        self.pieces.add(pawn)
 
     def deployPawns(self):
         for pawNum in range(1, 9):
@@ -112,7 +108,7 @@ class Table:
         rook.x, rook.y = self.addon * rookNum + int(self.settings.addon * 0.1), self.addon * y + int(self.settings.addon * 0.1) - 5
         rook.rect.x = rook.x
         rook.rect.y = rook.y
-        self.rooks.add(rook)
+        self.pieces.add(rook)
 
     def deployRooks(self):
         for rookNum in range(1, 9, 7):
@@ -136,7 +132,7 @@ class Table:
         knight.x, knight.y = self.addon * knightNum + int(self.settings.addon * 0.1), self.addon * y + int(self.settings.addon * 0.1) - 5
         knight.rect.x = knight.x
         knight.rect.y = knight.y
-        self.knights.add(knight)
+        self.pieces.add(knight)
 
     def deployKnights(self):
         for knightNum in range(2, 8, 5):
@@ -161,7 +157,7 @@ class Table:
         bishop.x, bishop.y = self.addon * bishopNum + int(self.settings.addon * 0.1), self.addon * y + int(self.settings.addon * 0.1) - 5
         bishop.rect.x = bishop.x
         bishop.rect.y = bishop.y
-        self.bishops.add(bishop)
+        self.pieces.add(bishop)
 
     def deployBishops(self):
         for bishopNum in range(3, 7, 3):
@@ -185,7 +181,7 @@ class Table:
         king.x, king.y = self.addon * kingNum + int(self.settings.addon * 0.1), self.addon * y + int(self.settings.addon * 0.1) - 5
         king.rect.x = king.x
         king.rect.y = king.y
-        self.kings.add(king)
+        self.pieces.add(king)
 
     def deployKings(self):
         self.createKings(5, "w")
@@ -207,7 +203,7 @@ class Table:
         queen.x, queen.y = self.addon * queenNum + int(self.settings.addon * 0.1), self.addon * y + int(self.settings.addon * 0.1) - 5
         queen.rect.x = queen.x
         queen.rect.y = queen.y
-        self.queens.add(queen)
+        self.pieces.add(queen)
 
     def deployQueens(self):
         self.createQueens(4, "w")
@@ -219,14 +215,43 @@ class Table:
 
 
     def updatePieces(self):
+        """
         self.pawns.update()
         self.rooks.update()
         self.knights.update()
         self.bishops.update()
         self.queens.update()
         self.kings.update()
+        """
+        self.pieces.update()
+
+    def events(self):
+        #EVENTS
+        for event in p.event.get():
+            if event.type == p.QUIT:
+                self.running = False
+
+            if event.type == p.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    for piece in self.pieces:
+                        if piece.check_click(event.pos):
+                            self.dragging = True
+                            self.clickedPiece = piece
+                            self.clickedPiece.rect.x = event.pos[0] - self.addon / 2
+                            self.clickedPiece.rect.y = event.pos[1] - self.addon / 2
+
+            elif event.type == p.MOUSEBUTTONUP:
+                if event.button == 1:
+                    if self.clickedPiece:
+                        self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
+                    self.dragging = False
+
+            elif event.type == p.MOUSEMOTION:
+                if self.dragging:
+                    x, y = event.pos
+                    self.clickedPiece.rect.x = x - self.addon / 2
+                    self.clickedPiece.rect.y = y - self.addon / 2
         
-               
     def run(self):
 
         # SCREEN
@@ -240,23 +265,22 @@ class Table:
 
 
         # PIECES
+        """
         self.pawns.draw(self.screen)
         self.rooks.draw(self.screen)
         self.knights.draw(self.screen)
         self.bishops.draw(self.screen)
         self.queens.draw(self.screen)
         self.kings.draw(self.screen)
+        """
+        self.pieces.draw(self.screen)
         self.updatePieces()
 
 
-
-        
-        #MOVE
-
-
         #FPS, FLIP
-        p.display.flip()
         self.clock.tick(self.fps)
+        p.display.flip()
+
 
    
 p.quit()
