@@ -1,6 +1,7 @@
 import pygame as p
 from settings import Settings
 from pieces import Piece
+from math import ceil
 
 p.init()
 
@@ -18,7 +19,7 @@ class Table:
         self.queens = p.sprite.Group()
         self.kings = p.sprite.Group()
         """
-        self.pieces = p.sprite.Group()
+        self.pieces = p.sprite.LayeredUpdates()
         ##########
         self.running = self.settings.running
         self.dark = self.settings.dark
@@ -214,17 +215,22 @@ class Table:
 
 ####################
 
+    def isValidMove(self, x, y):
+        x = self.clickedPiece.getCurrentPos(x, y)[0]
+        y = self.clickedPiece.getCurrentPos(x, y)[1]
+        print(x, y)
+        for piece in self.pieces:
+            if piece != self.clickedPiece and piece.color == self.clickedPiece.color and piece.getCurrentPos(piece.rect.x, piece.rect.y)[0] == x and piece.getCurrentPos(piece.rect.x, piece.rect.y)[1] == y:
+                return False
+        return True
 
+    def movePieceToNearestSquare(self, x, y):
+        x -= self.addon
+        y -= self.addon / self.heightOptimizer
+        x, y = int(ceil(x / 100.0))-1, int(ceil(y / 100.0))-1
+        self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.addon + self.cellWidth * x + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * y + int(self.settings.cellWidth * 0.1) - 5
 
     def updatePieces(self):
-        """
-        self.pawns.update()
-        self.rooks.update()
-        self.knights.update()
-        self.bishops.update()
-        self.queens.update()
-        self.kings.update()
-        """
         self.pieces.update()
 
     def events(self):
@@ -244,6 +250,7 @@ class Table:
                         if piece.check_click(event.pos):
                             self.dragging = True
                             self.clickedPiece = piece
+                            self.pieces.move_to_front(piece)
                             self.oldX, self.oldY = self.clickedPiece.rect.x, self.clickedPiece.rect.y
                             self.clickedPiece.rect.x = event.pos[0] - self.cellWidth / 2
                             self.clickedPiece.rect.y = event.pos[1] - self.cellWidth / 2
@@ -253,8 +260,13 @@ class Table:
                     if self.clickedPiece:
                         posX, posY = event.pos
                         if self.clickedPiece.isOutofTable(posX, posY):
-                            self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.oldX, self.oldY 
-                        self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
+                            self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.oldX, self.oldY
+                        else:
+                            self.movePieceToNearestSquare(posX, posY)
+                            if not self.isValidMove(posX, posY):
+                                self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.oldX, self.oldY
+                            else:
+                                self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
                     self.dragging = False
 
             elif event.type == p.MOUSEMOTION:
@@ -276,14 +288,6 @@ class Table:
 
 
         # PIECES
-        """
-        self.pawns.draw(self.screen)
-        self.rooks.draw(self.screen)
-        self.knights.draw(self.screen)
-        self.bishops.draw(self.screen)
-        self.queens.draw(self.screen)
-        self.kings.draw(self.screen)
-        """
         self.pieces.draw(self.screen)
         self.updatePieces()
 
