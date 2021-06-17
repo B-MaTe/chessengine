@@ -4,10 +4,11 @@ class Settings:
     def __init__(self):
         self.dark = (60,60,60)
         self.bright = (255,255,255)
-        self.boardWidth = 1200
-        self.boardHeight = 1000
-        self.screen = p.display.set_mode([self.boardWidth, self.boardHeight])
-        self.addon = int(self.boardHeight * 0.2 / 2)
+        self.boardSize = 1000
+        self.screen = p.display.set_mode((0, 0), p.FULLSCREEN)
+        self.addon = 460 # width / 2 - boardWidth / 2
+        self.heightOptimizer = 4
+        self.cellWidth = int(self.boardSize * 0.2 / 2)
         self.borderColor = self.dark
         self.fps = 60
         self.running = True

@@ -9,10 +9,13 @@ class Piece(p.sprite.Sprite):
         self.piece = piece
         self.color = color
         self.addon = self.settings.addon
+        self.cellWidth = self.settings.cellWidth
+        self.boardSize = self.settings.boardSize
         self.screen = self.settings.screen
         self.image = p.image.load(self.getImagePath())
-        self.image = p.transform.scale(self.image, (self.settings.addon - int(self.settings.addon * 0.2), self.settings.addon - int(self.settings.addon * 0.1)))
+        self.image = p.transform.scale(self.image, (self.settings.cellWidth - int(self.settings.cellWidth * 0.2), self.settings.cellWidth - int(self.settings.cellWidth * 0.1)))
         self.rect = self.image.get_rect()
+        self.heightOptimizer = self.settings.heightOptimizer
 
         self.rect.x = self.rect.width
         self.rect.y = self.rect.height
@@ -32,14 +35,21 @@ class Piece(p.sprite.Sprite):
             return False
     
 
+    def isOutofTable(self, x, y):
+        tableL, tableR, tableT, tableB = self.addon, self.addon + 8*self.cellWidth, self.addon / self.heightOptimizer, self.addon / self.heightOptimizer + 8*self.cellWidth
+        if x >= tableR or x <= tableL or y >= tableB or y <= tableT:
+            return True
+        return False
+
     def checkHit(self, piece, group):
         try:
-            collidedPiece = p.sprite.spritecollide(piece, group, False)[1]
-            print("Collided")
+            collidedPiece = p.sprite.spritecollide(piece, group, False)[0]
+            #print("Collided")
             if piece.color != collidedPiece.color:
                 collidedPiece.kill()
             else:
-                print("same")
+                #print("same")
+                pass
 
         except:
             return False
