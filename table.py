@@ -36,6 +36,8 @@ class Table:
         self.clickedPiece = None
         self.heightOptimizer = self.settings.heightOptimizer
         self.oldX, self.oldY = None, None
+        self.turn = "w"
+        self.hit = False
 
         # START GAME
         self.deployPawns()
@@ -218,11 +220,26 @@ class Table:
     def isValidMove(self, x, y):
         x = self.clickedPiece.getCurrentPos(x, y)[0]
         y = self.clickedPiece.getCurrentPos(x, y)[1]
-        print(x, y)
         for piece in self.pieces:
             if piece != self.clickedPiece and piece.color == self.clickedPiece.color and piece.getCurrentPos(piece.rect.x, piece.rect.y)[0] == x and piece.getCurrentPos(piece.rect.x, piece.rect.y)[1] == y:
                 return False
         return True
+
+    def validateMove(self, piece, typeOfMove, hit):
+        piece = piece.piece
+        if piece == "knight" and typeOfMove == "L":
+            return True
+        elif piece == "bishop" and typeOfMove == "diagonal":
+            return True
+        elif piece == "rook" and (typeOfMove in ["horizontal", "vertical"]):
+            return True
+        elif piece == "pawn" and ((typeOfMove == "vertical") or (hit and typeOfMove == "diagonal")):
+            return True
+        elif piece == "queen" and (typeOfMove in ["horizontal", "vertical", "diagonal"]):
+            return True
+        elif piece == "king" and typeOfMove == "kingMove":
+            return True
+        return False
 
     def movePieceToNearestSquare(self, x, y):
         x -= self.addon
@@ -233,6 +250,84 @@ class Table:
     def updatePieces(self):
         self.pieces.update()
 
+    def typeOfMove(self, oldX, oldY, newX, newY, piece):
+        if piece.piece != "king":
+            if oldX == newX:
+                return "vertical"
+            elif oldY == newY:
+                return "horizontal"
+            elif (oldX == newX - 2 and oldY == newY - 1) or (oldX == newX - 2 and oldY == newY + 1) or (oldX == newX + 2 and oldY == newY - 1) or (oldX == newX + 2 and oldY == newY + 1) or (oldX == newX - 1 and oldY == newY - 2) or (oldX == newX + 1 and oldY == newY - 2) or (oldX == newX - 1 and oldY == newY + 2) or (oldX == newX + 1 and oldY == newY + 2): # NOT THE MOST BEAUTIFUL, BUT WORKS
+                return "L"
+            elif abs(oldX - newX) == abs(oldY - newY):
+                return "diagonal"
+            
+            else:
+                return False # INVALID MOVE
+        else:
+            if abs(oldX - newX) <= 1 and abs(oldY - newY) <= 1:
+                return "kingMove"
+            else:
+                return False
+
+    def moveBack(self, piece):
+        piece.rect.x,  piece.rect.y = self.oldX, self.oldY
+
+
+    def isSteppedOverAnotherPiece(self, oldX, oldY, newX, newY, typeOfMove):
+        if typeOfMove == "horizontal":
+            if oldX < newX:
+                for piece in self.pieces:
+                    pieceX, pieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                    if pieceY == oldY:
+                        if oldX < pieceX and newX > pieceX:
+                            return True
+                return False
+            elif oldX > newX:
+                for piece in self.pieces:
+                    pieceX, pieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                    if pieceY == oldY:
+                        if oldX > pieceX and newX < pieceX:
+                            return True
+                return False
+
+        elif typeOfMove == "vertical":
+            if oldY < newY:
+                for piece in self.pieces:
+                    pieceX, pieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                    if pieceX == oldX:
+                        if oldY < pieceY and newY > pieceY:
+                            return True
+                return False
+            elif oldY > newY:
+                for piece in self.pieces:
+                    pieceX, pieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                    if pieceX == oldX:
+                        if oldY > pieceY and newY < pieceY:
+                            return True
+                return False
+
+        elif typeOfMove == "diagonal":
+            for piece in self.pieces:
+                pieceX, pieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                if abs(oldX - pieceX) == abs(oldY - pieceY):
+                    if oldX < newX and oldY < newY:
+                        if oldX < pieceX < newX and oldY < pieceY < newY:
+                            return True
+
+                    elif oldX > newX and oldY > newY:
+                        if oldX > pieceX > newX and oldY > pieceY > newY:
+                            return True
+
+                    elif oldX < newX and oldY > newY:
+                        if oldX < pieceX < newX and oldY > pieceY > newY:
+                            return True
+
+                    elif oldX > newX and oldY < newY:
+                        if oldX > pieceX > newX and oldY < pieceY < newY:
+                            return True
+            return False
+
+
     def events(self):
         #EVENTS
         for event in p.event.get():
@@ -242,7 +337,6 @@ class Table:
             elif event.type == p.KEYDOWN:
                 if event.key == p.K_q:
                     self.running = False
-
 
             elif event.type == p.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -257,17 +351,32 @@ class Table:
 
             elif event.type == p.MOUSEBUTTONUP:
                 if event.button == 1:
-                    if self.clickedPiece:
+                    if self.clickedPiece and self.dragging:
                         posX, posY = event.pos
-                        if self.clickedPiece.isOutofTable(posX, posY):
-                            self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.oldX, self.oldY
+                        if self.clickedPiece.isOutofTable(posX, posY) or self.clickedPiece.color != self.turn:
+                            self.moveBack(self.clickedPiece)
                         else:
                             self.movePieceToNearestSquare(posX, posY)
                             if not self.isValidMove(posX, posY):
-                                self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.oldX, self.oldY
+                                self.moveBack(self.clickedPiece)
                             else:
-                                self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
-                    self.dragging = False
+                                typeOfMove = self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece)
+                                if not typeOfMove:
+                                    self.moveBack(self.clickedPiece)
+                                else:
+                                    if self.validateMove(self.clickedPiece, typeOfMove, self.clickedPiece.checkHit(self.clickedPiece, self.pieces, True)):
+                                        if not self.isSteppedOverAnotherPiece(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], typeOfMove):
+                                            self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
+                                            if self.turn == "w":
+                                                self.turn = "b"
+                                            else:
+                                                self.turn = "w"
+                                        else:
+                                            self.moveBack(self.clickedPiece)
+                                    else:
+                                        self.moveBack(self.clickedPiece)
+                                        
+                self.dragging = False
 
             elif event.type == p.MOUSEMOTION:
                 if self.dragging:

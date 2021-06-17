@@ -46,16 +46,26 @@ class Piece(p.sprite.Sprite):
             return True
         return False
 
-    def checkHit(self, piece, group):
-        try:
-            collidedPiece = p.sprite.spritecollide(piece, group, False)[0]
-            #print("Collided")
-            if piece.color != collidedPiece.color:
-                collidedPiece.kill()
-            else:
-                #print("same")
-                pass
+    def checkHit(self, piece, group, info=False):
+        if not info:
+            try:
+                collidedPiece = p.sprite.spritecollide(piece, group, False)[0]
+                #print("Collided")
+                if piece.color != collidedPiece.color:
+                    collidedPiece.kill()
+                else:
+                    #print("same")
+                    pass
 
-        except:
-            return False
+            except:
+                return False
+        else:
+            if piece.piece == "pawn":
+                try:
+                    collidedPiece = p.sprite.spritecollide(piece, group, False)[1]
+                    return True
+                except:
+                    return False
+            else:
+                return False
     
