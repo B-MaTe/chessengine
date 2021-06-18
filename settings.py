@@ -12,3 +12,5 @@ class Settings:
         self.borderColor = self.dark
         self.fps = 60
         self.running = True
+        self.pieceSquare = (174, 39, 37)
+        self.moveableSquares = (174, 132, 104)

@@ -17,7 +17,7 @@ class Piece(p.sprite.Sprite):
         self.image = p.transform.scale(self.image, (self.settings.cellWidth - int(self.settings.cellWidth * 0.2), self.settings.cellWidth - int(self.settings.cellWidth * 0.1)))
         self.rect = self.image.get_rect()
         self.heightOptimizer = self.settings.heightOptimizer
-        self._layer = self.rect.bottom
+        self.moved = False
 
         self.rect.x = self.rect.width
         self.rect.y = self.rect.height
