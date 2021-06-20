@@ -55,13 +55,13 @@ class Table:
         self.deployKings()
 
 
+
     def getTableRect(self, posX, posY):
         rect = p.Rect(posX, posY, self.cellWidth, self.cellWidth)
         self.squares.append(rect)
         return rect
 
         
-
 
     def drawTable(self):
         for i in range(8):
@@ -261,12 +261,18 @@ class Table:
     def typeOfMove(self, oldX, oldY, newX, newY, piece):
         if piece.piece != "king":
             if oldX == newX:
+                if piece.piece == "pawn":
+                    if not self.checkPawnDirection(oldY, newY):
+                        return False
                 return "vertical"
             elif oldY == newY:
                 return "horizontal"
             elif (oldX == newX - 2 and oldY == newY - 1) or (oldX == newX - 2 and oldY == newY + 1) or (oldX == newX + 2 and oldY == newY - 1) or (oldX == newX + 2 and oldY == newY + 1) or (oldX == newX - 1 and oldY == newY - 2) or (oldX == newX + 1 and oldY == newY - 2) or (oldX == newX - 1 and oldY == newY + 2) or (oldX == newX + 1 and oldY == newY + 2): # NOT THE MOST BEAUTIFUL, BUT WORKS
                 return "L"
             elif abs(oldX - newX) == abs(oldY - newY):
+                if piece.piece == "pawn":
+                    if not self.checkPawnDirection(oldY, newY):
+                        return False
                 if oldX > newX:
                     if oldY > newY:
                         if 8 - ((7 - oldX) + newX) == 8 - ((7 - oldY) + newY):
@@ -348,14 +354,40 @@ class Table:
         return False
 
     def isChess(self):
-        for bking in self.pieces:
-            if bking.piece == "king" and bking.color == "b":
-                bking = bking
-                break
+        whiteMoves = set()
+        blackMoves = set()
+        bKingRow, bKingColumn = None, None
+        wKingRow, wKingColumn = None, None
         for piece in self.pieces:
-            pass
+            if piece.color == "w":
+                if piece.piece == "king":
+                    wKingRow, wKingColumn = self.translatePosition(piece.getCurrentPos(piece.rect.x, piece.rect.y)[0],piece.getCurrentPos(piece.rect.x, piece.rect.y)[1])
+                else:
+                    for move in self.getPossibleMoves(piece, True):
+                        whiteMoves.add(tuple(self.translatePosition(move[0], move[1])))
 
-    def colorPossibleSquares(self, piece):
+            else:
+
+                if piece.piece == "king":
+                    bKingRow, bKingColumn = self.translatePosition(piece.getCurrentPos(piece.rect.x, piece.rect.y)[0],piece.getCurrentPos(piece.rect.x, piece.rect.y)[1])
+                else:
+                    for move in self.getPossibleMoves(piece, True):
+                        blackMoves.add(tuple(self.translatePosition(move[0], move[1])))
+
+        for pos in whiteMoves:
+            if [pos[0], pos[1]] == [bKingRow, bKingColumn]:
+                if self.turn == "b":
+                    return True
+        for pos in blackMoves:
+            if [pos[0], pos[1]] == [wKingRow, wKingColumn]:
+                if self.turn == "b":
+                    return True
+
+        return False
+
+    def colorPossibleSquares(self, piece, chess=False, kX=None, kY=None):
+        if chess:
+            p.draw.rect(self.screen, self.settings.pieceSquare, self.squares[kX + kY * 8])
         posX, posY = piece.getCurrentPos(self.oldX, self.oldY)
         p.draw.rect(self.screen, self.settings.pieceSquare, self.squares[posX + posY * 8])
         if self.possibleMoves:
@@ -363,76 +395,97 @@ class Table:
                 p.draw.rect(self.screen, self.settings.moveableSquares, self.squares[val[0] + val[1] * 8])
 
 
-    def getPossibleMoves(self, piece):
+    def checkPawnDirection(self, oldY, newY):
+
+        if self.clickedPiece.color == "w":
+            if oldY < newY:
+                return False
+        else:
+            if oldY > newY:
+                return False
+        
+        return True
+
+    def translatePosition(self, posX, posY):
+        return [self.settings.boardLetters[posX],self.settings.boardNums[7-posY]]
+
+    def getPossibleMoves(self, piece, flag=False):
         currPiece = piece
         color = piece.color
         typeOfPiece = piece.piece
-        self.possibleMoves = []
-        currPieceX, currPieceY = piece.getCurrentPos(self.oldX, self.oldY)
+        possibleMoves = []
+        if not flag:
+            currPieceX, currPieceY = piece.getCurrentPos(self.oldX, self.oldY)
+        else:
+            currPieceX, currPieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+            if currPiece == "pawn":
+                piece.moved = True
         if typeOfPiece == "king":
             for i in range(-1, 2):
                 for j in range(-1, 2):
                     if 0 <= currPieceX + i < 8 and 0 <= currPieceY + j < 8:
                         if i != 0 or j != 0:
-                            self.possibleMoves.append([currPieceX + i, currPieceY + j])
+                            possibleMoves.append([currPieceX + i, currPieceY + j])
             for otherPiece in self.pieces:
                 currentPos = list(otherPiece.getCurrentPos(otherPiece.rect.x, otherPiece.rect.y))
-                if currentPos in self.possibleMoves and otherPiece.color == color:
-                    self.possibleMoves.remove(currentPos)
-                elif currentPos in self.possibleMoves and otherPiece.color != color:
+                if currentPos in possibleMoves and otherPiece.color == color:
+                    possibleMoves.remove(currentPos)
+                elif currentPos in possibleMoves and otherPiece.color != color:
                     ### CHECK FOR CHESS
                     pass
         elif typeOfPiece == "pawn":
             canHitL = False
             canHitR = False
             if color == "w":
-                if not self.clickedPiece.moved:
-                    self.possibleMoves.append([currPieceX, currPieceY-2])
-                self.possibleMoves.append([currPieceX, currPieceY-1])
-                self.possibleMoves.append([currPieceX-1, currPieceY-1])
-                self.possibleMoves.append([currPieceX+1, currPieceY-1])
+                if not currPiece.moved:
+                    possibleMoves.append([currPieceX, currPieceY-2])
+                possibleMoves.append([currPieceX, currPieceY-1])
+                possibleMoves.append([currPieceX-1, currPieceY-1])
+                possibleMoves.append([currPieceX+1, currPieceY-1])
             else:
-                if not self.clickedPiece.moved:
-                    self.possibleMoves.append([currPieceX, currPieceY+2])
-                self.possibleMoves.append([currPieceX, currPieceY+1])
-                self.possibleMoves.append([currPieceX+1, currPieceY+1])
-                self.possibleMoves.append([currPieceX-1, currPieceY+1])
+                if not currPiece.moved:
+                    possibleMoves.append([currPieceX, currPieceY+2])
+                possibleMoves.append([currPieceX, currPieceY+1])
+                possibleMoves.append([currPieceX+1, currPieceY+1])
+                possibleMoves.append([currPieceX-1, currPieceY+1])
             for otherPiece in self.pieces:
                 currentPos = list(otherPiece.getCurrentPos(otherPiece.rect.x, otherPiece.rect.y))
-                if currentPos in self.possibleMoves and currentPos[0] == currPieceX:
-                    self.possibleMoves.remove(currentPos)
-                if currentPos[0] > currPieceX and currentPos in self.possibleMoves and otherPiece.color != color:
+                if currentPos in possibleMoves and currentPos[0] == currPieceX:
+                    possibleMoves.remove(currentPos)
+                if currentPos[0] > currPieceX and currentPos in possibleMoves and otherPiece.color != color:
                     canHitR = True
-                if currentPos[0] < currPieceX and currentPos in self.possibleMoves and otherPiece.color != color:
+                if currentPos[0] < currPieceX and currentPos in possibleMoves and otherPiece.color != color:
                     canHitL = True
             if color == "w":
                 Y = -1
             else:
                 Y = 1
             if not canHitR:
-                self.possibleMoves.remove([currPieceX+1, currPieceY+Y])
+                possibleMoves.remove([currPieceX+1, currPieceY+Y])
                 
             if not canHitL:
-                self.possibleMoves.remove([currPieceX-1, currPieceY+Y])
+                possibleMoves.remove([currPieceX-1, currPieceY+Y])
         elif typeOfPiece == "knight":
             # NOT THE MOST BEAUTIFUL, BUT WORKS
             if 0 <= currPieceX - 2 <= 7 and 0 <= currPieceY - 1 <= 7:
-                self.possibleMoves.append([currPieceX - 2, currPieceY - 1])
+                possibleMoves.append([currPieceX - 2, currPieceY - 1])
             if 0 <= currPieceX - 2 <= 7 and 0 <= currPieceY + 1 <= 7:
-                self.possibleMoves.append([currPieceX - 2, currPieceY + 1])
+                possibleMoves.append([currPieceX - 2, currPieceY + 1])
             if 0 <= currPieceX + 2 <= 7 and 0 <= currPieceY - 1 <= 7:
-                self.possibleMoves.append([currPieceX + 2, currPieceY - 1])
+                possibleMoves.append([currPieceX + 2, currPieceY - 1])
             if 0 <= currPieceX + 2 <= 7 and 0 <= currPieceY + 1 <= 7:
-                self.possibleMoves.append([currPieceX + 2, currPieceY + 1])
+                possibleMoves.append([currPieceX + 2, currPieceY + 1])
             if 0 <= currPieceX - 1 <= 7 and 0 <= currPieceY - 2 <= 7:
-                self.possibleMoves.append([currPieceX - 1, currPieceY - 2])
+                possibleMoves.append([currPieceX - 1, currPieceY - 2])
             if 0 <= currPieceX + 1 <= 7 and 0 <= currPieceY - 2 <= 7:
-                self.possibleMoves.append([currPieceX + 1, currPieceY - 2])
+                possibleMoves.append([currPieceX + 1, currPieceY - 2])
             if 0 <= currPieceX - 1 <= 7 and 0 <= currPieceY + 2 <= 7:
-                self.possibleMoves.append([currPieceX - 1, currPieceY + 2])
+                possibleMoves.append([currPieceX - 1, currPieceY + 2])
             if 0 <= currPieceX + 1 <= 7 and 0 <= currPieceY + 2 <= 7:
-                self.possibleMoves.append([currPieceX + 1, currPieceY + 2])
-            self.checkSameColor(color)
+                possibleMoves.append([currPieceX + 1, currPieceY + 2])
+
+            possibleMoves = self.checkSameColor(color, possibleMoves)
+
         elif typeOfPiece in ["rook", "queen", "bishop"]:
             if typeOfPiece in ["rook", "queen"]:
                 xRight, xLeft, yUp, yDown = None, None, None, None
@@ -470,16 +523,16 @@ class Table:
                 else:
                     yDown += 1
                 for xLeftMovement in range(1, xLeft):
-                    self.possibleMoves.append([currPieceX-xLeftMovement,currPieceY])            
+                    possibleMoves.append([currPieceX-xLeftMovement,currPieceY])            
                 for xRightMovement in range(1, xRight):
-                    self.possibleMoves.append([currPieceX+xRightMovement,currPieceY])
+                    possibleMoves.append([currPieceX+xRightMovement,currPieceY])
                 for yUpMovement in range(1, yUp):
-                    self.possibleMoves.append([currPieceX,currPieceY-yUpMovement])
+                    possibleMoves.append([currPieceX,currPieceY-yUpMovement])
                 for yDownMovement in range(1, yDown):
-                    self.possibleMoves.append([currPieceX,currPieceY+yDownMovement])
+                    possibleMoves.append([currPieceX,currPieceY+yDownMovement])
                 if typeOfPiece == "rook":
-                    self.checkSameColor(color)
-                    return self.possibleMoves
+                    possibleMoves = self.checkSameColor(color, possibleMoves)
+                    return possibleMoves
                     
             if typeOfPiece in ["bishop", "queen"]:
                 for y in range(8):
@@ -487,18 +540,21 @@ class Table:
                         move = self.typeOfMove(currPieceX, currPieceY, x, y, currPiece)
                         if move == "diagonal":
                             if not self.isSteppedOverAnotherPiece(currPieceX, currPieceY, x, y, move):
-                                    self.possibleMoves.append([x, y])
-                self.checkSameColor(color)
+                                    possibleMoves.append([x, y])
+                possibleMoves = self.checkSameColor(color, possibleMoves)
 
-        return self.possibleMoves
+        return possibleMoves
 
-    def checkSameColor(self, color):
+    def checkSameColor(self, color, possibleMoves):
         for otherPiece in self.pieces:
-                    if otherPiece.color == color:
-                        posX, posY = otherPiece.getCurrentPos(otherPiece.rect.x, otherPiece.rect.y)
-                        for move in self.possibleMoves:
-                            if move == [posX, posY]:
-                                self.possibleMoves.remove(move)
+            if otherPiece.color == color:
+                posX, posY = otherPiece.getCurrentPos(otherPiece.rect.x, otherPiece.rect.y)
+                for move in possibleMoves:
+                    if move == [posX, posY]:
+                        possibleMoves.remove(move)
+        return possibleMoves
+
+
     def events(self):
         #EVENTS
         for event in p.event.get():
@@ -510,52 +566,50 @@ class Table:
                     self.running = False
 
             elif event.type == p.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    for piece in self.pieces:
-                        if piece.check_click(event.pos):
-                            self.clickedPiece = piece
-                            if not self.possibleMoves:
-                                self.oldX, self.oldY = self.clickedPiece.rect.x, self.clickedPiece.rect.y
-                                #print(self.clickedPiece.piece, self.getPossibleMoves(self.clickedPiece))
-                            if self.flag:
-                                 self.possibleMoves = self.getPossibleMoves(self.clickedPiece)
-                                 self.flag = False
-                            self.dragging = True
-                            self.pieces.move_to_front(piece)
-                            
-                            self.clickedPiece.rect.x = event.pos[0] - self.cellWidth / 2
-                            self.clickedPiece.rect.y = event.pos[1] - self.cellWidth / 2
+                for piece in self.pieces:
+                    if piece.check_click(event.pos):
+                        self.clickedPiece = piece
+                        if self.flag:
+                            self.oldX, self.oldY = self.clickedPiece.rect.x, self.clickedPiece.rect.y
+                            self.possibleMoves = self.getPossibleMoves(self.clickedPiece)
+                            self.flag = False
+                        self.dragging = True
+                        self.pieces.move_to_front(piece)
+                        
+                        self.clickedPiece.rect.x = event.pos[0] - self.cellWidth / 2
+                        self.clickedPiece.rect.y = event.pos[1] - self.cellWidth / 2
 
             elif event.type == p.MOUSEBUTTONUP:
-                if event.button == 1:
-                    if self.clickedPiece and self.dragging:
-                        posX, posY = event.pos
-                        if self.clickedPiece.isOutofTable(posX, posY) or self.clickedPiece.color != self.turn:
+                if self.clickedPiece and self.dragging:
+                    posX, posY = event.pos
+                    if self.clickedPiece.isOutofTable(posX, posY) or self.clickedPiece.color != self.turn:
+                        self.moveBack(self.clickedPiece)
+                    else:
+                        self.movePieceToNearestSquare(posX, posY)
+                        if not self.isValidMove(posX, posY):
                             self.moveBack(self.clickedPiece)
                         else:
-                            self.movePieceToNearestSquare(posX, posY)
-                            if not self.isValidMove(posX, posY):
+                            typeOfMove = self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece)
+                            if not typeOfMove:
                                 self.moveBack(self.clickedPiece)
                             else:
-                                typeOfMove = self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece)
-                                if not typeOfMove:
-                                    self.moveBack(self.clickedPiece)
-                                else:
-                                    if self.validateMove(self.clickedPiece, typeOfMove, self.clickedPiece.checkHit(self.clickedPiece, self.pieces, True)):
-                                        if not self.isSteppedOverAnotherPiece(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], typeOfMove):
-                                            self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
-                                            if self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y) != self.clickedPiece.getCurrentPos(self.oldX, self.oldY):
-                                                if self.turn == "w":
-                                                    self.turn = "b"
-                                                else:
-                                                    self.turn = "w"
-                                                if not self.clickedPiece.moved:
-                                                    self.clickedPiece.moved = True
+                                if self.validateMove(self.clickedPiece, typeOfMove, self.clickedPiece.checkHit(self.clickedPiece, self.pieces, True)):
+                                    if [self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1]] in self.possibleMoves:
+                                        self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
+                                        if not self.isChess():
+                                            if self.turn == "w":
+                                                self.turn = "b"
+                                            else:
+                                                self.turn = "w"
+                                            if not self.clickedPiece.moved:
+                                                self.clickedPiece.moved = True
                                         else:
                                             self.moveBack(self.clickedPiece)
                                     else:
                                         self.moveBack(self.clickedPiece)
-                                        
+                                else:
+                                    self.moveBack(self.clickedPiece)
+                                    
                 self.dragging = False
                 self.clickedPiece = None
                 self.possibleMoves = None
@@ -580,9 +634,10 @@ class Table:
             self.colorPossibleSquares(self.clickedPiece)
             ####
             # ONLY FOR INFO, WILL HAVE TO BE DELETED
-            self.screen.blit(self.infoFont.render(str(self.possibleMoves), False, (0, 0, 0)), (1920, 250))
+            for x, move in enumerate(self.possibleMoves):
+                self.screen.blit(self.infoFont.render(str(self.translatePosition(move[0], move[1])), False, (0, 0, 0)), (1920, 10 + x * 30))
             if self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece):
-                self.screen.blit(self.infoFont.render(self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece), False, (0,0,0)), (1920, 540))
+                self.screen.blit(self.infoFont.render(self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece), False, (0,0,0)), (1720, 540))
 
         # PIECES
         self.pieces.draw(self.screen)

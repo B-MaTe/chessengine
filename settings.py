@@ -14,3 +14,5 @@ class Settings:
         self.running = True
         self.pieceSquare = (65, 203, 149)
         self.moveableSquares = (197, 215, 222)
+        self.boardLetters = ["a", "b", "c", "d", "e", "f", "g", "h"]
+        self.boardNums = ["1", "2", "3", "4", "5", "6", "7", "8"]
