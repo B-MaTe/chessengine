@@ -50,12 +50,10 @@ class Piece(p.sprite.Sprite):
         if not info:
             try:
                 collidedPiece = p.sprite.spritecollide(piece, group, False)[0]
-                #print("Collided")
                 if piece.color != collidedPiece.color:
-                    collidedPiece.kill()
+                    return collidedPiece
                 else:
-                    #print("same")
-                    pass
+                    return False
 
             except:
                 return False

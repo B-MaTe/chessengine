@@ -44,7 +44,12 @@ class Table:
         self.possibleMoves = None
         p.font.init()
         self.infoFont = p.font.SysFont('Comic Sans MS', 30)
+        self.turnFont = p.font.SysFont('Comic Sans MS', 100)
         self.flag = True
+        self.bKingRow, self.bKingColumn = None, None
+        self.wKingRow, self.wKingColumn = None, None
+        self.colorBKing = False
+        self.colorWKing = False
 
         # START GAME
         self.deployPawns()
@@ -298,7 +303,7 @@ class Table:
 
 
     def isSteppedOverAnotherPiece(self, oldX, oldY, newX, newY, typeOfMove):
-        if self.clickedPiece.piece != "knight" and self.clickedPiece.piece != "king":
+        if self.clickedPiece.piece != "king":
             if typeOfMove == "horizontal":
                 if oldX < newX:
                     for piece in self.pieces:
@@ -353,50 +358,60 @@ class Table:
             return True
         return False
 
-    def isChess(self):
+
+    def getWhiteMoves(self):
         whiteMoves = set()
-        blackMoves = set()
-        bKingRow, bKingColumn = None, None
-        wKingRow, wKingColumn = None, None
         for piece in self.pieces:
             if piece.color == "w":
-                if piece.piece == "king":
-                    wKingRow, wKingColumn = self.translatePosition(piece.getCurrentPos(piece.rect.x, piece.rect.y)[0],piece.getCurrentPos(piece.rect.x, piece.rect.y)[1])
+                for move in self.getPossibleMoves(piece, True):
+                    whiteMoves.add(tuple(self.translatePosition(move[0], move[1])))
+
+        return whiteMoves
+
+
+    def getBlackMoves(self):
+        blackMoves = set()
+        for piece in self.pieces:
+            if piece.color == "b":
+                for move in self.getPossibleMoves(piece, True):
+                    blackMoves.add(tuple(self.translatePosition(move[0], move[1])))
+
+        return blackMoves
+
+
+    def isChess(self):
+        for piece in self.pieces:
+            if piece.piece == "king":
+                if piece.color == "w":
+                    self.wKingRow, self.wKingColumn = piece.getCurrentPos(piece.rect.x, piece.rect.y)[0],piece.getCurrentPos(piece.rect.x, piece.rect.y)[1]
                 else:
-                    for move in self.getPossibleMoves(piece, True):
-                        whiteMoves.add(tuple(self.translatePosition(move[0], move[1])))
-
-            else:
-
-                if piece.piece == "king":
-                    bKingRow, bKingColumn = self.translatePosition(piece.getCurrentPos(piece.rect.x, piece.rect.y)[0],piece.getCurrentPos(piece.rect.x, piece.rect.y)[1])
-                else:
-                    for move in self.getPossibleMoves(piece, True):
-                        blackMoves.add(tuple(self.translatePosition(move[0], move[1])))
-
+                    self.bKingRow, self.bKingColumn = piece.getCurrentPos(piece.rect.x, piece.rect.y)[0],piece.getCurrentPos(piece.rect.x, piece.rect.y)[1]
+        wKingRow, wKingColumn = self.translatePosition(self.wKingRow, self.wKingColumn)
+        bKingRow, bKingColumn = self.translatePosition(self.bKingRow, self.bKingColumn)
+        whiteMoves = self.getWhiteMoves()
+        blackMoves = self.getBlackMoves()
         for pos in whiteMoves:
             if [pos[0], pos[1]] == [bKingRow, bKingColumn]:
-                if self.turn == "b":
-                    return True
+                return 'b'
         for pos in blackMoves:
             if [pos[0], pos[1]] == [wKingRow, wKingColumn]:
-                if self.turn == "b":
-                    return True
+                return 'w'
 
         return False
 
+
     def colorPossibleSquares(self, piece, chess=False, kX=None, kY=None):
         if chess:
-            p.draw.rect(self.screen, self.settings.pieceSquare, self.squares[kX + kY * 8])
-        posX, posY = piece.getCurrentPos(self.oldX, self.oldY)
-        p.draw.rect(self.screen, self.settings.pieceSquare, self.squares[posX + posY * 8])
-        if self.possibleMoves:
-            for val in self.possibleMoves:
-                p.draw.rect(self.screen, self.settings.moveableSquares, self.squares[val[0] + val[1] * 8])
+            p.draw.rect(self.screen, (253, 73, 77), self.squares[kX + kY * 8])
+        else:
+            posX, posY = piece.getCurrentPos(self.oldX, self.oldY)
+            p.draw.rect(self.screen, self.settings.pieceSquare, self.squares[posX + posY * 8])
+            if self.possibleMoves:
+                for val in self.possibleMoves:
+                    p.draw.rect(self.screen, self.settings.moveableSquares, self.squares[val[0] + val[1] * 8])
 
 
     def checkPawnDirection(self, oldY, newY):
-
         if self.clickedPiece.color == "w":
             if oldY < newY:
                 return False
@@ -408,6 +423,7 @@ class Table:
 
     def translatePosition(self, posX, posY):
         return [self.settings.boardLetters[posX],self.settings.boardNums[7-posY]]
+
 
     def getPossibleMoves(self, piece, flag=False):
         currPiece = piece
@@ -554,6 +570,13 @@ class Table:
                         possibleMoves.remove(move)
         return possibleMoves
 
+    def changeTurn(self):
+        if self.turn == "w":
+            self.turn = "b"
+        else:
+            self.turn = "w"
+        if not self.clickedPiece.moved:
+            self.clickedPiece.moved = True
 
     def events(self):
         #EVENTS
@@ -595,16 +618,24 @@ class Table:
                             else:
                                 if self.validateMove(self.clickedPiece, typeOfMove, self.clickedPiece.checkHit(self.clickedPiece, self.pieces, True)):
                                     if [self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1]] in self.possibleMoves:
-                                        self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
-                                        if not self.isChess():
-                                            if self.turn == "w":
-                                                self.turn = "b"
-                                            else:
-                                                self.turn = "w"
-                                            if not self.clickedPiece.moved:
-                                                self.clickedPiece.moved = True
+                                        collidedPiece = self.clickedPiece.checkHit(self.clickedPiece, self.pieces)
+                                        if collidedPiece:
+                                            collidedPiece.kill()
+                                        isChess = self.isChess()
+                                        if not isChess:
+                                            self.colorBKing, self.colorWKing = False, False
+                                            self.changeTurn()
                                         else:
-                                            self.moveBack(self.clickedPiece)
+                                            if isChess == "w" and self.turn == "b":
+                                                self.colorWKing = True
+                                                self.changeTurn()
+                                            elif isChess == "b" and self.turn == "w":
+                                                self.colorBKing = True
+                                                self.changeTurn()
+                                            else:
+                                                if collidedPiece:
+                                                    self.pieces.add(collidedPiece)
+                                                self.moveBack(self.clickedPiece)    
                                     else:
                                         self.moveBack(self.clickedPiece)
                                 else:
@@ -630,14 +661,23 @@ class Table:
         self.drawTable()
         self.drawBorder()
 
+
+        # TURN
+        self.screen.blit(self.turnFont.render(self.turn, False, (0, 0, 0)), (self.screen.get_width() / 1.2, self.screen.get_height() / 2))
+
+        if self.colorWKing:
+            self.colorPossibleSquares(self.clickedPiece, True, self.wKingRow, self.wKingColumn)
+        elif self.colorBKing:
+            self.colorPossibleSquares(self.clickedPiece, True, self.bKingRow, self.bKingColumn)
+        
         if self.clickedPiece:
             self.colorPossibleSquares(self.clickedPiece)
             ####
             # ONLY FOR INFO, WILL HAVE TO BE DELETED
             for x, move in enumerate(self.possibleMoves):
-                self.screen.blit(self.infoFont.render(str(self.translatePosition(move[0], move[1])), False, (0, 0, 0)), (1920, 10 + x * 30))
+                self.screen.blit(self.infoFont.render(str(self.translatePosition(move[0], move[1])), False, (0, 0, 0)), (self.screen.get_width() / 2, 100 + x * 30))
             if self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece):
-                self.screen.blit(self.infoFont.render(self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece), False, (0,0,0)), (1720, 540))
+                self.screen.blit(self.infoFont.render(self.typeOfMove(self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[0],self.clickedPiece.getCurrentPos(self.oldX, self.oldY)[1],self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[0], self.clickedPiece.getCurrentPos(self.clickedPiece.rect.x, self.clickedPiece.rect.y)[1], self.clickedPiece), False, (0,0,0)), (self.screen.get_width() / 1.2, 540))
 
         # PIECES
         self.pieces.draw(self.screen)
