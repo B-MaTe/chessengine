@@ -395,7 +395,7 @@ class Table:
 
     def isCheckMate(self, color):
         if color == "b":
-            self.whiteMoves = self.getWhiteMoves()
+            self.whiteMoves = self.getWhiteMoves() # REGENERATING THE MOVES
         else:
             self.blackMoves = self.getBlackMoves()
         self.checkMateChecker = True
