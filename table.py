@@ -65,7 +65,7 @@ class Table:
         self.possibleMoves = self.officialMoves()
         self.whiteMovesSet = set()
         self.blackMovesSet = set()
-
+        self.castleRook = None
 
     def getTableRect(self, posX, posY):
         rect = p.Rect(posX, posY, self.cellWidth, self.cellWidth)
@@ -248,7 +248,7 @@ class Table:
             return True
         elif piece == "queen" and (typeOfMove in ["horizontal", "vertical", "diagonal"]):
             return True
-        elif piece == "king" and typeOfMove == "kingMove":
+        elif piece == "king" and typeOfMove in ["kingMove", "castle"]:
             return True
         return False
 
@@ -266,6 +266,8 @@ class Table:
         if typeOfPiece == "king":
             if abs(oldX - newX) <= 1 and abs(oldY - newY) <= 1:
                 return "kingMove"
+            elif oldY == newY and abs(oldX - newX) == 2:
+                return "castle"
             return False
         elif typeOfPiece == "knight":
             if (oldX == newX - 2 and oldY == newY - 1) or (oldX == newX - 2 and oldY == newY + 1) or (oldX == newX + 2 and oldY == newY - 1) or (oldX == newX + 2 and oldY == newY + 1) or (oldX == newX - 1 and oldY == newY - 2) or (oldX == newX + 1 and oldY == newY - 2) or (oldX == newX - 1 and oldY == newY + 2) or (oldX == newX + 1 and oldY == newY + 2): # NOT THE MOST BEAUTIFUL, BUT WORKS
@@ -392,6 +394,10 @@ class Table:
 
 
     def isCheckMate(self, color):
+        if color == "b":
+            self.whiteMoves = self.getWhiteMoves()
+        else:
+            self.blackMoves = self.getBlackMoves()
         self.checkMateChecker = True
         for piece in self.pieces:
             if piece.color != color:
@@ -399,6 +405,7 @@ class Table:
                     print(self.officialMoves(piece, self.swapTurn[color]))
                     self.checkMateChecker = False
                     return False
+                
         winner = {
             "w" : "White",
             "b" : "Black"
@@ -421,7 +428,9 @@ class Table:
                     length = len(pieceInfo)
                     if length > 2:
                         for i in range(2, length):
+                            self.chess = False
                             piece.rect.x, piece.rect.y = self.addon + self.cellWidth * pieceInfo[i][0] + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * pieceInfo[i][1] + int(self.settings.cellWidth * 0.1) - 5
+                            self.pieces.move_to_front(piece) # I searched for a lot of hours till I found that this was missing from here :)
                             collision = self.checkCollision(piece)
                             if collision and collision.piece != "king":
                                 collision.kill()
@@ -484,15 +493,16 @@ class Table:
                 kingRow, kingColumn = kingX, kingY
             
         for piecePos in moves:
-            for i in range(2, len(piecePos)):
-                if piecePos[i] == [kingRow, kingColumn]:
-                    if color == "w":
-                        self.colorWKing = True
-                    else:
-                        self.colorBKing = True
-                    self.chess = self.turn
-                    return False
-        self.chess = False
+            length = len(piecePos)
+            if length > 2:
+                for i in range(2, length):
+                    if piecePos[i] == [kingRow, kingColumn]:
+                        if color == "w":
+                            self.colorWKing = True
+                        else:
+                            self.colorBKing = True
+                        self.chess = color
+                        break
 
 
     def colorPossibleSquares(self, piece, chess=False, kX=None, kY=None):
@@ -537,6 +547,32 @@ class Table:
         else:
             currPieceX, currPieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
         if typeOfPiece == "king":
+            if not currPiece.moved:
+                rooks = []
+                for piece in self.pieces:
+                    if piece.piece == "rook" and not piece.moved and piece.color == color:
+                        rooks.append(piece)
+                if len(rooks):
+                    for rook in rooks:
+                        between = False
+                        castleRookX, castleRookY = rook.getCurrentPos(rook.rect.x, rook.rect.y)
+                        for piece in self.pieces:
+                            if piece != rook and piece != currPiece:
+                                pieceX, pieceY = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                                if currPieceY == pieceY:
+                                    if castleRookX > currPieceX:
+                                        if currPieceX < pieceX < castleRookX:
+                                            between = True
+                                            break
+                                    else:
+                                        if currPieceX > pieceX > castleRookX:
+                                            between = True
+                                            break
+                        if not between:
+                            if castleRookX > currPieceX:
+                                possibleMoves.append([currPieceX + 2, currPieceY])
+                            else:
+                                possibleMoves.append([currPieceX - 2, currPieceY])
             for i in range(-1, 2):
                 for j in range(-1, 2):
                     if 0 <= currPieceX + i < 8 and 0 <= currPieceY + j < 8:
@@ -680,11 +716,27 @@ class Table:
                             possibleMoves.remove(move)
         return possibleMoves
     
+    
+    def handleCastling(self, color, oldX, newX, kingY):
+        for piece in self.pieces:
+            if piece.piece == "rook" and piece.color == color:
+                x, y = piece.getCurrentPos(piece.rect.x, piece.rect.y)
+                if oldX < newX:
+                    if [x, y] == [7, kingY]:
+                        piece.rect.x, piece.rect.y = self.addon + self.cellWidth * 5 + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * kingY + int(self.settings.cellWidth * 0.1) - 5
+                        return True
+                else:
+                    if [x, y] == [0, kingY]:
+                        piece.rect.x, piece.rect.y = self.addon + self.cellWidth * 3 + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * kingY + int(self.settings.cellWidth * 0.1) - 5
+                        return True
+        return False
+                        
+
 
     def checkCollision(self, piece=None):
         if not piece:
             piece = self.clickedPiece
-        return piece.checkHit(self.clickedPiece, self.pieces)
+        return piece.checkHit(piece, self.pieces)
 
 
     def changeTurn(self):
@@ -696,6 +748,7 @@ class Table:
         if not self.clickedPiece.moved:
             self.clickedPiece.moved = True
         
+        # GENERATE AVALIABLE MOVES
         self.whiteMoves = self.getWhiteMoves()
         self.blackMoves = self.getBlackMoves()
         self.chess = False
@@ -715,16 +768,18 @@ class Table:
                 for piece in self.pieces:
                     if piece.check_click(event.pos):
                         self.clickedPiece = piece
+                        
                         if self.flag:
                             self.wKingRow, self.wKingColumn, self.bKingRow, self.bKingColumn = self.getKingPos("w")[0], self.getKingPos("w")[1], self.getKingPos("b")[0], self.getKingPos("b")[1]
-                            self.oldX, self.oldY = self.clickedPiece.rect.x, self.clickedPiece.rect.y
-                            self.possibleMoves = self.officialMoves(piece)
+                            self.oldX, self.oldY = piece.rect.x, piece.rect.y
+                            self.possibleMoves = self.officialMoves(piece, piece.color)
                             self.flag = False
+                            
                         self.dragging = True
                         self.pieces.move_to_front(piece)
                         
-                        self.clickedPiece.rect.x = event.pos[0] - self.cellWidth / 2
-                        self.clickedPiece.rect.y = event.pos[1] - self.cellWidth / 2
+                        piece.rect.x = event.pos[0] - self.cellWidth / 2
+                        piece.rect.y = event.pos[1] - self.cellWidth / 2
                         break
 
             elif event.type == p.MOUSEBUTTONUP:
@@ -740,6 +795,8 @@ class Table:
                                     typeOfMove = self.typeOfMove(oldPos[0],oldPos[1],newPos[0], newPos[1], self.clickedPiece)
                                     if typeOfMove:
                                         if self.validateMove(self.clickedPiece, typeOfMove, self.clickedPiece.checkHit(self.clickedPiece, self.pieces, True)):
+                                            if typeOfMove == "castle":
+                                                self.handleCastling(self.clickedPiece.color, oldPos[0], newPos[0], oldPos[1])
                                             if not self.isSteppedOverAnotherPiece(oldPos[0],oldPos[1],newPos[0], newPos[1], typeOfMove):
                                                 collision = self.checkCollision()
                                                 if collision:
@@ -752,13 +809,11 @@ class Table:
                                                 self.changeTurn() # GET OPPONENT MOVES ASWELL
                                                 self.dragging = False
                                                 self.clickedPiece = None
-                                               
                                                 self.possibleMoves = None
                                                 self.flag = True
                                                 self.wKingRow, self.wKingColumn, self.bKingRow, self.bKingColumn = self.getKingPos("w")[0], self.getKingPos("w")[1], self.getKingPos("b")[0], self.getKingPos("b")[1]
                                                 break
-                    self.moveBack(self.clickedPiece)
-                self.chess = False                        
+                    self.moveBack(self.clickedPiece)       
                 self.dragging = False
                 self.clickedPiece = None
                 self.possibleMoves = None

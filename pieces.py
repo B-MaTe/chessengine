@@ -29,7 +29,11 @@ class Piece(p.sprite.Sprite):
         filepath = os.path.dirname(__file__)
         return os.path.join(filepath, "pieces", self.color + self.piece + ".png")
 
-    def getCurrentPos(self, x, y):
+    def getCurrentPos(self, x=None, y=None):
+        if x:
+            x, y = x, y
+        else:
+            x, y = self.x, self.y
         x -= self.addon
         y -= self.addon / self.heightOptimizer
         return int(ceil(x / 100.0))-1, int(ceil(y / 100.0))-1

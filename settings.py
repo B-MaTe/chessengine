@@ -2,7 +2,7 @@ import pygame as p
 
 class Settings:
     def __init__(self):
-        self.dark = (60,60,60)
+        self.dark = (80,60,80)
         self.bright = (255,255,255)
         self.boardSize = 1000
         self.screen = p.display.set_mode((0, 0), p.FULLSCREEN)
