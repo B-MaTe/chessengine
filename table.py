@@ -39,13 +39,16 @@ class Table:
         self.infoFont = p.font.SysFont('Comic Sans MS', 30)
         self.turnFont = p.font.SysFont('Comic Sans MS', 100)
         self.checkmateFont = p.font.SysFont('Comic Sans MS', 120)
+        self.promotion = p.font.SysFont('Comic Sans MS', 20)
         self.flag = True
         self.bKingRow, self.bKingColumn = 4, 0
         self.wKingRow, self.wKingColumn = 4, 7
         self.colorBKing = False
         self.colorWKing = False
-        self.checkmate = None
+        self.checkmate = False
+        self.stalemate = False
         self.chess = False
+        self.promoted = False
         self.numOfTurn = 1
         self.swapTurn = {
             "w" : "b",
@@ -250,14 +253,17 @@ class Table:
             return True
         return False
 
+
     def movePieceToNearestSquare(self, x, y):
         x -= self.addon
         y -= self.addon / self.heightOptimizer
         x, y = int(ceil(x / 100.0))-1, int(ceil(y / 100.0))-1
         self.clickedPiece.rect.x, self.clickedPiece.rect.y = self.addon + self.cellWidth * x + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * y + int(self.settings.cellWidth * 0.1) - 5
 
+
     def updatePieces(self):
         self.pieces.update()
+
 
     def typeOfMove(self, oldX, oldY, newX, newY, piece):
         typeOfPiece = piece.piece
@@ -395,6 +401,53 @@ class Table:
             "b" : "Black"
         }
         self.checkmate = winner[color]
+        
+    def isStalemate(self, color):
+        counter = 0
+        for piece in self.pieces:
+            counter += 1
+        if counter < 3:
+            self.stalemate = True
+        if color == "b":
+            self.whiteMoves = self.getAllPossibleMoves("w") # REGENERATING THE MOVES
+        else:
+            self.blackMoves = self.getAllPossibleMoves("b")
+        for piece in self.pieces:
+            if piece.color != color:
+                if self.officialMoves(piece, self.swapTurn[color]):
+                    return False
+        
+        self.stalemate = True
+        
+        
+    def promotePawn(self, pawn, choosenPiece, x, y):
+        pawn.kill()
+        choosenPiece = Piece(choosenPiece, self.turn)
+        choosenPiece.x, choosenPiece.y = self.addon + self.cellWidth * x + int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + self.cellWidth * y + int(self.settings.cellWidth * 0.1) - 5
+        choosenPiece.rect.x = choosenPiece.x
+        choosenPiece.rect.y = choosenPiece.y
+        self.pieces.add(choosenPiece)
+        self.promoted = False
+        
+        
+        self.changeTurn()
+        self.clickedPiece = None
+        self.possibleMoves = None
+        self.flag = True
+        self.wKingRow, self.wKingColumn, self.bKingRow, self.bKingColumn = self.getKingPos("w")[0], self.getKingPos("w")[1], self.getKingPos("b")[0], self.getKingPos("b")[1]
+        
+    
+    def checkPawnPromotion(self, y, color):
+        lastRow = {
+            "b": 7,
+            "w": 0
+        }
+        
+        if y == lastRow[color]:
+            self.promoted = True
+            return True
+        return False
+                
 
 
     def officialMoves(self, piece=None, color=None):
@@ -774,10 +827,19 @@ class Table:
                 self.running = False
             
             elif event.type == p.KEYDOWN:
-                if event.key == p.K_q:
+                if event.key == p.K_p:
                     self.running = False
-                if event.key == p.K_r:
+                if event.key == p.K_u:
                     self.restart = True
+                if event.key == p.K_r and self.promotion:
+                    self.promotePawn(self.clickedPiece, "rook", self.newPos[0], self.newPos[1])
+                if event.key == p.K_q and self.promotion:
+                    self.promotePawn(self.clickedPiece, "queen", self.newPos[0], self.newPos[1])
+                if event.key == p.K_b and self.promotion:
+                    self.promotePawn(self.clickedPiece, "bishop", self.newPos[0], self.newPos[1])
+                if event.key == p.K_k and self.promotion:
+                    self.promotePawn(self.clickedPiece, "knight", self.newPos[0], self.newPos[1])
+
 
             elif event.type == p.MOUSEBUTTONDOWN:
                 for piece in self.pieces:
@@ -803,6 +865,7 @@ class Table:
                     if not self.clickedPiece.isOutofTable(posX, posY) and self.clickedPiece.color == self.turn:
                         oldPos = self.clickedPiece.getCurrentPos(self.oldX, self.oldY)
                         newPos = self.clickedPiece.getCurrentPos(posX, posY)
+                        self.newPos = newPos
                         if newPos != self.clickedPiece.getCurrentPos(self.oldX, self.oldY):
                             self.movePieceToNearestSquare(posX, posY)
                             if self.possibleMoves:
@@ -819,8 +882,13 @@ class Table:
                                                 self.isChess(self.swapTurn[self.turn])
                                                 if not self.chess:
                                                     self.colorWKing, self.colorBKing = False, False
+                                                    self.isStalemate(self.turn)
                                                 else:
                                                     self.isCheckMate(self.turn)
+                                                if self.clickedPiece.piece == "pawn":
+                                                    if self.checkPawnPromotion(newPos[1] ,self.clickedPiece.color):
+                                                        self.dragging = False
+                                                        break
                                                 self.changeTurn() # GET OPPONENT MOVES ASWELL
                                                 self.dragging = False
                                                 self.clickedPiece = None
@@ -874,8 +942,21 @@ class Table:
 
         # CHECKMATE
         if self.checkmate:
-            self.screen.blit(self.checkmateFont.render(f"Game Over! {self.checkmate} Won!", False, (255, 0, 0),(0, 0, 0)), (200, self.screen.get_height() / 6))
+            self.screen.blit(self.checkmateFont.render(f"Game End! {self.checkmate} Won!", False, (255, 0, 0),(0, 0, 0)), (200, self.screen.get_height() / 6))
+        elif self.stalemate:
+            self.screen.blit(self.checkmateFont.render(f"Game End! It's a draw!", False, (255, 0, 0),(0, 0, 0)), (200, self.screen.get_height() / 6))
             ###### RESTART GAME, QUIT....
+            
+            
+        # PROMOTION
+        if self.promoted:
+            self.screen.blit(self.promotion.render(f"PRESS 'Q' FOR QUEEN", False, (255, 150, 20),(0, 110, 50)), (0, self.screen.get_height() / 4))
+            self.screen.blit(self.promotion.render(f"PRESS 'R' FOR ROOK", False, (255, 150, 20),(0, 110, 50)), (300, self.screen.get_height() / 4))
+            self.screen.blit(self.promotion.render(f"PRESS 'B' FOR BISHOP", False, (255, 150, 20),(0, 110, 50)), (600, self.screen.get_height() / 4))
+            self.screen.blit(self.promotion.render(f"PRESS 'K' FOR KNIGHT", False, (255, 150, 20),(0, 110, 50)), (900, self.screen.get_height() / 4))
+
+
+
 
         #FPS, FLIP
         self.clock.tick(self.fps)
