@@ -10,6 +10,11 @@ class Main:
         while self.table.running:
             self.table.run()
             self.table.events()
+            if self.table.restart:
+                self.table.restart = False
+                pygame.quit()
+                Main()
+                
 
 
 

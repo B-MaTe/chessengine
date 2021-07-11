@@ -14,6 +14,7 @@ class Table:
         self.pieces = p.sprite.LayeredUpdates()
         ##########
         
+        self.restart = False
         self.running = self.settings.running
         self.dark = self.settings.dark
         self.bright = self.settings.bright
@@ -60,8 +61,8 @@ class Table:
         self.deployQueens()
         self.deployKings()
 
-        self.whiteMoves = self.getWhiteMoves()
-        self.blackMoves = self.getBlackMoves()
+        self.whiteMoves = self.getAllPossibleMoves("w")
+        self.blackMoves = self.getAllPossibleMoves("b")
         self.possibleMoves = self.officialMoves()
 
     def getTableRect(self, posX, posY):
@@ -364,10 +365,10 @@ class Table:
         return True
 
 
-    def getWhiteMoves(self):
+    def getAllPossibleMoves(self, color):
         moves = []
         for piece in self.pieces:
-            if piece.color == "w":
+            if piece.color == color:
                 tempList = []
                 tempList.append(piece) # THE PIECE
                 tempList.append([piece.getCurrentPos(piece.rect.x, piece.rect.y)[0], piece.getCurrentPos(piece.rect.x, piece.rect.y)[1]]) # CURR POS
@@ -377,24 +378,11 @@ class Table:
         return moves
 
 
-    def getBlackMoves(self):
-        blackMoves = []
-        for piece in self.pieces:
-            if piece.color == "b":
-                tempList = []
-                tempList.append(piece)
-                tempList.append([piece.getCurrentPos(piece.rect.x, piece.rect.y)[0], piece.getCurrentPos(piece.rect.x, piece.rect.y)[1]]) # CURR POS
-                for move in self.getPossibleMoves(piece, True):
-                    tempList.append([move[0], move[1]])
-                blackMoves.append(tempList)
-        return blackMoves
-
-
     def isCheckMate(self, color):
         if color == "b":
-            self.whiteMoves = self.getWhiteMoves() # REGENERATING THE MOVES
+            self.whiteMoves = self.getAllPossibleMoves("w") # REGENERATING THE MOVES
         else:
-            self.blackMoves = self.getBlackMoves()
+            self.blackMoves = self.getAllPossibleMoves("b")
         self.checkMateChecker = True
         for piece in self.pieces:
             if piece.color != color:
@@ -512,13 +500,13 @@ class Table:
 
     def isChess(self, color, kingX=None, kingY=None):
         if color == "w":
-            moves = self.getBlackMoves()
+            moves = self.getAllPossibleMoves("b")
             if not kingX:
                 kingRow, kingColumn = self.wKingRow, self.wKingColumn
             else:
                 kingRow, kingColumn = kingX, kingY
         else:
-            moves = self.getWhiteMoves()
+            moves = self.getAllPossibleMoves("w")
             if not kingX:
                 kingRow, kingColumn = self.bKingRow, self.bKingColumn
             else:
@@ -549,6 +537,7 @@ class Table:
                     for val in self.possibleMoves:
                         p.draw.rect(self.screen, self.settings.moveableSquares, self.squares[val[0] + val[1] * 8])
 
+
     def checkPawnDirection(self, oldY, newY):
         if self.clickedPiece.color == "w":
             if oldY < newY:
@@ -558,6 +547,7 @@ class Table:
                 return False
         
         return True
+
 
     def translatePosition(self, posX, posY):
         return [self.settings.boardLetters[posX],self.settings.boardNums[7-posY]]
@@ -772,8 +762,8 @@ class Table:
             self.clickedPiece.moved = True
         
         # GENERATE AVALIABLE MOVES
-        self.whiteMoves = self.getWhiteMoves()
-        self.blackMoves = self.getBlackMoves()
+        self.whiteMoves = self.getAllPossibleMoves("w")
+        self.blackMoves = self.getAllPossibleMoves("b")
         self.chess = False
 
 
@@ -786,6 +776,8 @@ class Table:
             elif event.type == p.KEYDOWN:
                 if event.key == p.K_q:
                     self.running = False
+                if event.key == p.K_r:
+                    self.restart = True
 
             elif event.type == p.MOUSEBUTTONDOWN:
                 for piece in self.pieces:
