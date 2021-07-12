@@ -54,7 +54,9 @@ class Table:
             "w" : "b",
             "b" : "w"
         }
+        self.newPos = None
         self.checkMateChecker = False
+        self.freshlyMovedPawn = None
         
         # START GAME
         self.deployPawns()
@@ -245,7 +247,7 @@ class Table:
             return True
         elif piece == "rook" and (typeOfMove in ["horizontal", "vertical"]):
             return True
-        elif piece == "pawn" and ((typeOfMove == "vertical" and not hit) or (hit and typeOfMove == "diagonal")):
+        elif piece == "pawn" and ((typeOfMove == "vertical" and not hit) or (hit and typeOfMove == "diagonal" or typeOfMove == "diagonal" and self.freshlyMovedPawn)):
             return True
         elif piece == "queen" and (typeOfMove in ["horizontal", "vertical", "diagonal"]):
             return True
@@ -402,6 +404,7 @@ class Table:
         }
         self.checkmate = winner[color]
         
+        
     def isStalemate(self, color):
         counter = 0
         for piece in self.pieces:
@@ -421,15 +424,16 @@ class Table:
         
         
     def promotePawn(self, pawn, choosenPiece, x, y):
-        pawn.kill()
-        choosenPiece = Piece(choosenPiece, self.turn)
-        choosenPiece.x, choosenPiece.y = self.addon + self.cellWidth * x + int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + self.cellWidth * y + int(self.settings.cellWidth * 0.1) - 5
-        choosenPiece.rect.x = choosenPiece.x
-        choosenPiece.rect.y = choosenPiece.y
-        self.pieces.add(choosenPiece)
+        if pawn.piece == "pawn":
+            pawn.kill()
+            choosenPiece = Piece(choosenPiece, self.turn)
+            choosenPiece.x, choosenPiece.y = self.addon + self.cellWidth * x + int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + self.cellWidth * y + int(self.settings.cellWidth * 0.1) - 5
+            choosenPiece.rect.x = choosenPiece.x
+            choosenPiece.rect.y = choosenPiece.y
+            self.pieces.add(choosenPiece)
+            
+            
         self.promoted = False
-        
-        
         self.changeTurn()
         self.clickedPiece = None
         self.possibleMoves = None
@@ -442,7 +446,6 @@ class Table:
             "b": 7,
             "w": 0
         }
-        
         if y == lastRow[color]:
             self.promoted = True
             return True
@@ -529,6 +532,7 @@ class Table:
                 if length > 2:
                     for j in range(2, length):
                         piece.rect.x, piece.rect.y = self.addon + self.cellWidth * moves[i][j][0] + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * moves[i][j][1] + int(self.settings.cellWidth * 0.1) - 5
+                        self.pieces.move_to_front(piece)
                         collision = self.checkCollision(piece)
                         if collision and collision.piece != "king":
                             collision.kill()
@@ -538,6 +542,40 @@ class Table:
                         piece.rect.x, piece.rect.y = self.addon + self.cellWidth * oldX + int(self.settings.cellWidth * 0.1),self.addon / self.heightOptimizer + self.cellWidth * oldY + int(self.settings.cellWidth * 0.1) - 5
                         if collision:
                             self.pieces.add(collision)
+                    if piece.piece == "king":
+                        if not piece.moved:
+                            for moves in officialMoves:
+                                newX = moves[i][1][0]
+                                if abs(newX - oldX) > 1:
+                                    if oldX < newX:
+                                        if [oldX+1, oldY] in officialMoves:
+                                            for rook in self.pieces:
+                                                if rook == "rook" and rook.color == color:
+                                                    rookX, rookY = rook.getCurrentPos()
+                                                    if rookX > oldX:
+                                                        if not rook.moved:
+                                                            continue
+                                                        else:
+                                                            officialMoves.remove([oldX+2 ,oldY])
+                                        else:
+                                            officialMoves.remove([oldX+2 ,oldY])
+                                    else:
+                                        if [oldX-1, oldY] in officialMoves:
+                                            for rook in self.pieces:
+                                                if rook == "rook" and rook.color == color:
+                                                    rookX, rookY = rook.getCurrentPos()
+                                                    if rookX < oldX:
+                                                        if not rook.moved:
+                                                            continue
+                                                        else:
+                                                            officialMoves.remove([oldX-2 ,oldY])
+                                        else:
+                                            officialMoves.remove([oldX-2 ,oldY])
+                    else:
+                        if [2, oldY] in officialMoves:
+                            officialMoves.remove([2 ,oldY])
+                        if [6, oldY] in officialMoves:
+                            officialMoves.remove([6 ,oldY])
         if officialMoves == []:
             return False
             
@@ -674,6 +712,18 @@ class Table:
                     canHitR = True
                 if currentPos[0] < currPieceX and currentPos in possibleMoves and otherPiece.color != color:
                     canHitL = True
+            if self.freshlyMovedPawn and currPieceY == 3 and color == "w":
+                x, y = self.freshlyMovedPawn.getCurrentPos(self.freshlyMovedPawn.rect.x, self.freshlyMovedPawn.rect.y)
+                if currPieceX + 1 == x and currPieceY == y:
+                    canHitR = True
+                elif currPieceX -1 == x and currPieceY == y:
+                    canHitL = True
+            elif self.freshlyMovedPawn and currPieceY == 4 and color == "b":
+                x, y = self.freshlyMovedPawn.getCurrentPos(self.freshlyMovedPawn.rect.x, self.freshlyMovedPawn.rect.y)
+                if currPieceX - 1 == x and currPieceY == y:
+                    canHitL = True
+                elif currPieceX + 1 == x and currPieceY == y:
+                    canHitR = True
             if color == "w":
                 Y = -1
             else:
@@ -797,7 +847,11 @@ class Table:
                         return True
         return False
                         
-
+    def handleAmpass(self, killedPawn, pawn):
+        pawnX,pawnY = pawn.getCurrentPos(pawn.rect.x, pawn.rect.y)
+        killedPawnX,killedPawnY = killedPawn.getCurrentPos(killedPawn.rect.x, killedPawn.rect.y)
+        if pawnX == killedPawnX and abs(pawnY - killedPawnY) == 1:
+            killedPawn.kill()
 
     def checkCollision(self, piece=None):
         if not piece:
@@ -831,14 +885,18 @@ class Table:
                     self.running = False
                 if event.key == p.K_u:
                     self.restart = True
-                if event.key == p.K_r and self.promotion:
-                    self.promotePawn(self.clickedPiece, "rook", self.newPos[0], self.newPos[1])
-                if event.key == p.K_q and self.promotion:
-                    self.promotePawn(self.clickedPiece, "queen", self.newPos[0], self.newPos[1])
-                if event.key == p.K_b and self.promotion:
-                    self.promotePawn(self.clickedPiece, "bishop", self.newPos[0], self.newPos[1])
-                if event.key == p.K_k and self.promotion:
-                    self.promotePawn(self.clickedPiece, "knight", self.newPos[0], self.newPos[1])
+                if event.key == p.K_r:
+                    if self.promotion and self.newPos and self.clickedPiece:
+                        self.promotePawn(self.clickedPiece, "rook", self.newPos[0], self.newPos[1])
+                if event.key == p.K_q:
+                    if self.promotion and self.newPos and self.clickedPiece:
+                        self.promotePawn(self.clickedPiece, "queen", self.newPos[0], self.newPos[1])
+                if event.key == p.K_b:
+                    if self.promotion and self.newPos and self.clickedPiece:
+                        self.promotePawn(self.clickedPiece, "bishop", self.newPos[0], self.newPos[1])
+                if event.key == p.K_k:
+                    if self.promotion and self.newPos and self.clickedPiece:
+                        self.promotePawn(self.clickedPiece, "knight", self.newPos[0], self.newPos[1])
 
 
             elif event.type == p.MOUSEBUTTONDOWN:
@@ -886,9 +944,15 @@ class Table:
                                                 else:
                                                     self.isCheckMate(self.turn)
                                                 if self.clickedPiece.piece == "pawn":
-                                                    if self.checkPawnPromotion(newPos[1] ,self.clickedPiece.color):
+                                                    if not self.clickedPiece.moved:
+                                                        self.freshlyMovedPawn = self.clickedPiece
+                                                    elif self.checkPawnPromotion(self.newPos[1] ,self.clickedPiece.color):
                                                         self.dragging = False
                                                         break
+                                                    else:
+                                                        if self.freshlyMovedPawn:
+                                                            self.handleAmpass(self.freshlyMovedPawn, self.clickedPiece)
+                                                            self.freshlyMovedPawn = None
                                                 self.changeTurn() # GET OPPONENT MOVES ASWELL
                                                 self.dragging = False
                                                 self.clickedPiece = None
