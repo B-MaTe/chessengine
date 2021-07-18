@@ -18,6 +18,16 @@ class Piece(p.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.heightOptimizer = self.settings.heightOptimizer
         self.moved = False
+        if self.color == "w":
+            if self.piece == "knight":
+                self.edp = self.piece[1].upper()
+            else:
+                self.edp = self.piece[0].upper()
+        else:
+            if self.piece == "knight":
+                self.edp = self.piece[1]
+            else:
+                self.edp = self.piece[0]
 
         self.rect.x = self.rect.width
         self.rect.y = self.rect.height
