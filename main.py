@@ -16,7 +16,7 @@ class Main:
 
     def __init__(self):
         self.settings = Settings()
-        self.ai = Computer("b", 2)
+        self.ai = Computer("b", 4)
         # PIECES
         self.pieces = p.sprite.LayeredUpdates()
         ##########
@@ -63,7 +63,6 @@ class Main:
             "b": "w"
         }
         self.newPos = None
-        self.checkMateChecker = False
         self.freshlyMovedPawn = None
         self.gameOn = True
         self.positionsChecked = 0
@@ -71,20 +70,32 @@ class Main:
         self.wCastle = "KQ"
         self.bCastle = "kq"
         self.lastMove = None
-        self.isMaximising = True
+        self.checkMateFound = False
+        self.chessActive = False
+        self.bestMoves = {
+            'w': [],
+            'b': [],
+        }
+        
+        
 
         # START GAME
+        """
         self.deployPawns()
         self.deployRooks()
         self.deployKnights()
         self.deployBishops()
         self.deployQueens()
         self.deployKings()
-
+        """
+        if not len(self.pieces):
+            edp = "6k1/pp3r2/2p4q/3p2p1/3Pp1b1/4P1P1/PP4RP/2Q1RrNK b"
+            self.deployEdp(edp)
         self.whiteMoves = self.getAllPossibleMoves("w")
         self.blackMoves = self.getAllPossibleMoves("b")
         self.possibleMoves = self.officialMoves()
         self.whitePieceW, self.blackPieceW = self.ai.getPieceWorth(self.pieces)
+        self.currentStanding = self.whitePieceW + self.blackPieceW
 
     def getTableRect(self, posX, posY):
         rect = p.Rect(posX, posY, self.cellWidth, self.cellWidth)
@@ -459,7 +470,6 @@ class Main:
         return False
 
     def officialMoves(self, piece=None, color=None):
-        self.kingChess = False
         if not color:
             color = self.turn
         officialMoves = []
@@ -473,25 +483,15 @@ class Main:
                         for i in range(2, length):
                             piece.rect.x, piece.rect.y = self.addon + self.cellWidth * pieceInfo[i][0] + int(
                                 self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + self.cellWidth * pieceInfo[i][1] + int(self.settings.cellWidth * 0.1) - 5
-                            # I searched for a lot of hours till I found that this was missing from here :)
-                            self.pieces.move_to_front(piece)
+                            self.pieces.move_to_front(piece) # I searched for a lot of hours till I found that this was missing from here :)
                             collision = self.checkCollision(piece)
                             if collision: #  and collision.piece != "king"
                                 collision.kill()
-                            if piece.piece == "king":
-                                self.isChess(color)
-                                if color in self.chess: 
-                                    self.kingChess = True
-                            else:
-                                self.isChess(color)
-                            if not self.checkMateChecker:
-                                if not self.chess or color not in self.chess:
-                                    officialMoves.append(
-                                        [pieceInfo[i][0], pieceInfo[i][1]])
-                            else:
-                                if not self.chess:
-                                    officialMoves.append(
-                                        [pieceInfo[i][0], pieceInfo[i][1]])
+                            self.isChess(color)
+                            if not self.chess:
+                                officialMoves.append([pieceInfo[i][0], pieceInfo[i][1]])
+                            elif color not in self.chess:
+                                officialMoves.insert(0, [pieceInfo[i][0], pieceInfo[i][1]])
                             piece.rect.x, piece.rect.y = self.addon + self.cellWidth * oldX + \
                                 int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + \
                                 self.cellWidth * oldY + \
@@ -506,7 +506,7 @@ class Main:
                     oldX, oldY = self.bKingRow, self.bKingColumn
                 else:
                     oldX, oldY = self.wKingRow, self.wKingColumn
-                if not self.kingChess:
+                if not self.chessActive or color not in self.chessActive:
                     if not piece.moved:
                         for moves in officialMoves:
                             newX = moves[0]
@@ -529,10 +529,10 @@ class Main:
                                                 if rookX < oldX:
                                                     if not rook.moved:
                                                         flagL = True
-                if not flagL:
+                if not flagL and not piece.moved:
                     if [2, oldY] in officialMoves:
                         officialMoves.remove([2, oldY])
-                if not flagR:
+                if not flagR and not piece.moved:
                     if [6, oldY] in officialMoves:
                         officialMoves.remove([6, oldY])
 
@@ -561,8 +561,6 @@ class Main:
                             collision.kill()
 
                         self.isChess(color)
-                        if self.chess and piece.piece == "king":
-                            self.kingChess = True
                         if not self.chess or self.chess != color:
                             officialMoves.append(
                                 [moves[i][j][0], moves[i][j][1]])
@@ -578,7 +576,7 @@ class Main:
                     if piece.piece == "king":
                         flagR = False
                         flagL = False
-                        if not self.kingChess:
+                        if not self.chessActive or color not in self.chessActive:
                             if not piece.moved:
                                 for moves in officialMoves:
                                     newX = moves[0]
@@ -755,6 +753,11 @@ class Main:
                     otherPiece.rect.x, otherPiece.rect.y))
                 if currentPos in possibleMoves and currentPos[0] == currPieceX:
                     possibleMoves.remove(currentPos)
+                    if not currPiece.moved and ([currPieceX, currPieceY+2] in possibleMoves or [currPieceX, currPieceY-2] in possibleMoves):
+                        try:
+                            possibleMoves.remove([currPieceX, currPieceY-2])
+                        except:
+                            possibleMoves.remove([currPieceX, currPieceY+2])
                 if currentPos[0] > currPieceX and currentPos in possibleMoves and otherPiece.color != color:
                     canHitR = True
                 if currentPos[0] < currPieceX and currentPos in possibleMoves and otherPiece.color != color:
@@ -929,53 +932,46 @@ class Main:
         return collision
 
     def minimaxRoot(self, depth, isMaximisingPlayer):
-       
+        self.checkMateFound = False
         bestMoveVal = -9999
         bestMove = None
-
+        for piece in self.pieces:
+            if piece.piece == "queen":
+                self.pieces.move_to_back(piece)
         for currPiece in self.pieces:
             if currPiece.color == self.ai.color:
                 moves = self.officialMoves(currPiece, self.ai.color)
                 if moves:
                     for move in moves:
+                        self.checkMateFound = False
                         oldX, oldY = currPiece.getCurrentPos(currPiece.rect.x, currPiece.rect.y)
-                        #print(currPiece.piece, self.translatePosition(move[0], move[1]) )
                         collision = self.visualizeMove(currPiece, move[0], move[1])
-                        newMoveVal = self.minimax(
-                            depth - 1, -10000, 10000, not isMaximisingPlayer)
-                        currPiece.rect.x, currPiece.rect.y = self.addon + self.cellWidth * oldX + \
-                            int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + \
-                            self.cellWidth * oldY + \
-                            int(self.settings.cellWidth * 0.1) - 5
+                        newMoveVal = self.minimax(depth - 1, -10000, 10000, not isMaximisingPlayer)
+                        currPiece.rect.x, currPiece.rect.y = self.addon + self.cellWidth * oldX + int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + self.cellWidth * oldY + int(self.settings.cellWidth * 0.1) - 5
                         if collision:
                             self.pieces.add(collision)
+                        print(newMoveVal, self.translatePosition(move[0], move[1]), currPiece.piece)
+                        if newMoveVal == -9999:
+                            return currPiece, move
                         if newMoveVal >= bestMoveVal:
                             bestMoveVal = newMoveVal
                             bestMove = currPiece, move
-        if not bestMove:
-            if self.ai.color in self.chess:
-                self.checkmate = self.swapTurn[self.ai.color]
-                
-            else:
-                self.stalemate = True
-            self.gameOn = False
-            return False
+        self.currentStanding = -bestMoveVal
         return bestMove
 
     def minimax(self, depth, alpha, beta, isMaximisingPlayer):
         self.positionsChecked += 1
-        if depth == 0:
+        if depth == 0 or self.checkMateFound:
             worth = self.ai.getPieceWorth(self.pieces)
+            self.currentStanding = worth[0] + worth[1]
             return -(worth[0] + worth[1])
-        self.isMaximising = isMaximisingPlayer
-        haveMoves = False
+        
         if isMaximisingPlayer:
             bestMove = -9999
             for currPiece in self.pieces:
                 if currPiece.color == self.ai.color:
                     moves = self.officialMoves(currPiece, self.ai.color)
                     if moves:
-                        haveMoves = True
                         for move in moves:
                             oldX, oldY = currPiece.getCurrentPos(currPiece.rect.x, currPiece.rect.y)
                             collision = self.visualizeMove(
@@ -988,12 +984,9 @@ class Main:
                                 int(self.settings.cellWidth * 0.1) - 5
                             if collision:
                                 self.pieces.add(collision)
-
                             alpha = max(alpha, bestMove)
                             if beta <= alpha:
                                 return bestMove
-            if not haveMoves:
-                return -9999
             return bestMove
         
         else:
@@ -1002,26 +995,24 @@ class Main:
                 if currPiece.color != self.ai.color:
                     moves = self.officialMoves(currPiece, self.swapTurn[self.ai.color])
                     if moves:
-                        haveMoves = True
                         for move in moves:
                             oldX, oldY = currPiece.getCurrentPos(currPiece.rect.x, currPiece.rect.y)
                             collision = self.visualizeMove(
                                 currPiece, move[0], move[1])
-                            bestMove = min(bestMove, self.minimax(
-                                depth - 1, alpha, beta, not isMaximisingPlayer))
-                            currPiece.rect.x, currPiece.rect.y = self.addon + self.cellWidth * oldX + \
-                                int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + \
-                                self.cellWidth * oldY + \
-                                int(self.settings.cellWidth * 0.1) - 5
+                            bestMove = min(bestMove, self.minimax(depth - 1, alpha, beta, not isMaximisingPlayer))
+                            currPiece.rect.x, currPiece.rect.y = self.addon + self.cellWidth * oldX + int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + self.cellWidth * oldY + int(self.settings.cellWidth * 0.1) - 5
                             if collision:
                                 self.pieces.add(collision)
-
+                            if bestMove == 9999:
+                                return bestMove
                             beta = min(beta, bestMove)
                             if beta <= alpha:
                                 return bestMove
-            if not haveMoves:
-                return 9999
+            if bestMove == 9999:
+                print("no move")
+                self.checkMateFound = True
             return bestMove
+
 
     def makeBestMove(self):
         try:
@@ -1038,6 +1029,7 @@ class Main:
         except:
             return False
 
+
     def getBestMove(self):
         self.positionsChecked = 0
         depth = self.ai.level
@@ -1046,6 +1038,7 @@ class Main:
             return piece, bestMove
         except:
             return False
+
 
     def createEPD(self):
         edp = ""
@@ -1066,20 +1059,21 @@ class Main:
                     emptycounter += 1
                 if k == 7:
                     if emptycounter > 0:
-                        if type(edp[-1]) == str:
+                        if i == 0 or type(edp[-1]) == str:
                             edp += f"{emptycounter}"
                         else:
                             edp += str(emptycounter)
-                    if edp[-1] != "/" and i != 7:
+                    if i == 0 or (edp[-1] != "/" and i != 7):
                         edp += "/"
         if self.wCastle == " " and self.bCastle == " ":
-            edp += f" b - - 0 1"
+            edp += f" b - - 10 1"
         else:
-            edp += f" b {self.wCastle}{self.bCastle} - 0 1"
-        # print(edp)
+            edp += f" b {self.wCastle}{self.bCastle} - 10 1"
+        #print(edp)
         return edp
 
-    def deplySinglePiece(self, pieceName, pieceColor, x, y):
+
+    def deploySinglePiece(self, pieceName, pieceColor, x, y):
         pieceName = Piece(pieceName, pieceColor)
         pieceName.x, pieceName.y = self.addon + self.cellWidth * x + \
             int(self.settings.cellWidth * 0.1), self.addon / self.heightOptimizer + \
@@ -1088,17 +1082,70 @@ class Main:
         pieceName.rect.y = pieceName.y
         self.pieces.add(pieceName)
 
+
     def deployEdp(self, edp):
-        i = 0
         x = 0
         y = 0
-        while i < len(edp):
-            i += 1
-            x += 1
-            if i % 8 == 0:
+        isFEN = True
+        flagW = False
+        flagB = False
+        pieceNames = {
+            "p" : "pawn",
+            "r" : "rook",
+            "n" : "knight",
+            "b" : "bishop",
+            "q" : "queen",
+            "k" : "king",
+        }
+        for c in edp:
+            if c == "/":
                 y += 1
-        # WILL CONTINUE THIS TO BE ABLE TO LOAD IN ANY POSITIONS FROM FEN...
-
+                x = 0
+                continue
+            try:
+                c = int(c)
+            except:
+                pass
+            if c in [" ", "."]:
+                isFEN = False
+                
+            elif type(c) == int and isFEN and c != 8:
+                x += c
+                continue
+            
+            elif isinstance(c, str) and isFEN and c != "/":
+                if c.isupper():
+                    self.deploySinglePiece(pieceNames[c.lower()],"w",x, y)
+                else:
+                    self.deploySinglePiece(pieceNames[c],"b",x, y)
+                x += 1
+            
+            
+            
+            if not isFEN:
+                if c == "b":
+                    self.turn = "b"
+                elif c == "w":
+                    self.turn = "w"
+                elif c == "K" or c == "Q":
+                    for piece in self.pieces:
+                        if piece.color == "w" and piece.piece == "king":
+                            piece.moved = False
+                            flagW = True
+                elif c == "k" or c == "q":
+                    for piece in self.pieces:
+                        if piece.color == "b" and piece.piece == "king":
+                            piece.moved = False
+                            flagB = True
+        
+        if not flagW:
+            for piece in self.pieces:
+                if piece.color == "w" and piece.piece == "king":
+                    piece.moved = True
+        if not flagB:
+            for piece in self.pieces:
+                if piece.color == "b" and piece.piece == "king":
+                    piece.moved = True
     def handleComputerOpeningsMove(self, move):
         move = str(move)
         if len(move) == 4:
@@ -1115,10 +1162,13 @@ class Main:
 
     def aiMove(self):
         gameOn = True
+        bestPiece = None
         self.startTime = time()
         if self.numOfTurn > 15:
             try:
                 bestPiece, move, oldPos = self.makeBestMove()
+                print(f"time elapsed: {timedelta(seconds=time() - self.startTime)}")
+                print(f"{self.positionsChecked} positions checked")
             except:
                 gameOn = False
         else:
@@ -1151,7 +1201,7 @@ class Main:
                     
                     
         color = self.ai.color
-        if gameOn:
+        if gameOn and bestPiece:
             tMove = self.translatePosition(move[0], move[1])
             print(f"Computer's move: {bestPiece.edp}{''.join(tMove)}")
             
@@ -1175,12 +1225,13 @@ class Main:
                         self.handleAmpass(self.freshlyMovedPawn, bestPiece)
                         self.freshlyMovedPawn = None
         self.isChess(color)
+        self.chessActive = self.chess
         if not self.chess or color not in self.chess:
             self.colorWKing, self.colorBKing = False, False
             self.isStalemate(color)
         else:
             self.isCheckMate(color)
-        if self.gameOn:
+        if self.gameOn and bestPiece:
             self.changeTurn(bestPiece)
 
     def changeTurn(self, piece=None):
@@ -1281,6 +1332,7 @@ class Main:
                                                 if collision:
                                                     collision.kill()
                                                 self.isChess(self.turn)
+                                                self.chessActive = self.chess
                                                 if not self.chess or self.clickedPiece.color not in self.chess:
                                                     self.colorWKing, self.colorBKing = False, False
                                                     self.isStalemate(self.turn)
@@ -1290,6 +1342,7 @@ class Main:
                                                     if not self.clickedPiece.moved:
                                                         self.freshlyMovedPawn = self.clickedPiece
                                                     elif self.checkPawnPromotion(self.newPos[1], self.clickedPiece.color):
+                                                        self.promotePawn(self.clickedPiece, "queen", self.newPos[0], self.newPos[1])
                                                         self.dragging = False
                                                     else:
                                                         if self.freshlyMovedPawn:
@@ -1343,7 +1396,7 @@ class Main:
 
         if self.clickedPiece:
             self.colorPossibleSquares(self.clickedPiece)
-        if self.lastMove:
+        if self.lastMove and not self.clickedPiece:
             p.draw.rect(self.screen, (230, 215, 149),
                         self.squares[self.lastMove[0] + self.lastMove[1] * 8])
 
@@ -1377,7 +1430,7 @@ class Main:
         elif self.stalemate:
             currentStanding = "0"
         else:
-            currentStanding = str((self.whitePieceW + self.blackPieceW) / 10)
+            currentStanding = str((self.currentStanding) / 10)
         self.screen.blit(self.infoFont.render(currentStanding, False,
                          (0, 0, 0)), (self.addon / 2, self.screen.get_height() / 2))
 
